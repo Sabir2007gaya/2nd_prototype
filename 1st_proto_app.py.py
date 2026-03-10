@@ -343,4 +343,5 @@ with tab3:
     elif d_to_e <= 2:
         capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates moderate capacity to service additional debt."
     else:
-        capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates stressed
+        capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates stressed"
+
