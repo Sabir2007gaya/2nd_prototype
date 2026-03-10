@@ -11,7 +11,13 @@ try:
 except Exception:
     HAS_FITZ = False
 
-from fpdf import FPDF  # for CAM PDF download
+# --------- Optional FPDF for CAM PDF (Cloud pe fail ho sakta) ---------
+try:
+    from fpdf import FPDF  # for CAM PDF download
+    HAS_FPDF = True
+except Exception:
+    HAS_FPDF = False
+
 
 
 # ---------- Helper functions ----------
@@ -344,4 +350,5 @@ with tab3:
         capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates moderate capacity to service additional debt."
     else:
         capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates stressed"
+
 
