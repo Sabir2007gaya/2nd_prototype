@@ -3,7 +3,7 @@ import re
 import numpy as np
 import pandas as pd
 import streamlit as st
-import fitz  # PyMuPDF
+#import fitz  # PyMuPDF
 
 # ---------- Helper functions ----------
 
@@ -402,3 +402,4 @@ with tab3:
     )
 
     st.caption("You can copy this CAM into Word/PDF for your hackathon submission.")
+
