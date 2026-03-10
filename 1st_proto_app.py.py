@@ -10,12 +10,9 @@ import streamlit as st
 def extract_text_from_pdf(uploaded_file):
     if uploaded_file is None:
         return ""
-    data = uploaded_file.read()
-    doc = fitz.open(stream=data, filetype="pdf")
-    text = ""
-    for page in doc:
-        text += page.get_text()
-    return text
+    # Cloud demo: real PDF parsing disabled because PyMuPDF not available
+    return "PDF text extraction is disabled in the cloud demo version. Please run locally for full functionality."
+
 
 def find_number_after_keyword(text, keywords):
     """
@@ -402,4 +399,5 @@ with tab3:
     )
 
     st.caption("You can copy this CAM into Word/PDF for your hackathon submission.")
+
 
