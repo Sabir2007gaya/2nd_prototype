@@ -349,6 +349,137 @@ with tab3:
     elif d_to_e <= 2:
         capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates moderate capacity to service additional debt."
     else:
-        capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates stressed"
+        capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates stressed capacity to service additional debt."
+
+    if rev_growth is None:
+        growth_desc = "Revenue growth trend is not fully available."
+    elif rev_growth > 10:
+        growth_desc = f"Revenue growth of {rev_growth:.1f}% reflects healthy business momentum."
+    elif rev_growth >= 0:
+        growth_desc = f"Revenue growth of {rev_growth:.1f}% reflects stable but modest growth."
+    else:
+        growth_desc = f"Revenue de‑growth of {rev_growth:.1f}% signals pressure on top‑line."
+
+    character_text = (
+        f"The borrower operates in the {sector} sector and has "
+        f"{'some' if combined_litigation_flag else 'no material'} indicators of litigation or regulatory disputes "
+        "based on document scan and user inputs."
+    )
+
+    capacity_text = capacity_desc + " " + growth_desc
+
+    capital_text = (
+        f"Approximate revenue of {format_inr(revenue)} and net profit of {format_inr(profit)} "
+        "suggest the internal accrual capacity for this prototype. "
+        "Detailed balance sheet analysis is not modelled in this version."
+    )
+
+    collateral_text = (
+        "Collateral details are not captured in this prototype; the recommendation is primarily driven by "
+        "cash‑flow behaviour, GST‑bank reconciliation and basic financial ratios."
+    )
+
+    conditions_text = (
+        f"The borrower operates in the {sector} sector. Macro and sectoral conditions are assumed "
+        "to be broadly stable for this demonstration."
+    )
+
+    explanation_text = (
+        f"The model assigned a score of {score}/100, driven by debt‑to‑equity, revenue growth, "
+        f"GST vs bank consistency and litigation indicators. The decision category is '{decision}', "
+        f"and a working capital limit of approximately {format_inr(limit)} at an indicative rate of {rate:.1f}% "
+        "is suggested for demonstration purposes."
+    )
+
+    cam_md = f"""
+### Credit Appraisal Memo (Prototype)
+
+**Company**: {company_name}  
+**Sector**: {sector}  
+**Score**: {score}/100  
+**Decision**: {decision}  
+
+**Suggested Limit**: {format_inr(limit)}  
+**Suggested Rate**: {rate:.1f}%  
+
+#### Character
+{character_text}
+
+#### Capacity
+{capacity_text}
+
+#### Capital
+{capital_text}
+
+#### Collateral
+{collateral_text}
+
+#### Conditions
+{conditions_text}
+
+#### Rationale
+{explanation_text}
+"""
+
+    st.markdown(cam_md)
+
+    # ---------- CAM downloads: Markdown, CSV, PDF (if available) ----------
+
+    # 1) Markdown
+    cam_bytes_md = cam_md.encode("utf-8")
+    st.download_button(
+        label="Download CAM as Markdown",
+        data=cam_bytes_md,
+        file_name=f"CAM_{company_name.replace(' ', '_')}.md",
+        mime="text/markdown",
+    )
+
+    # 2) CSV
+    cam_dict = {
+        "Company": [company_name],
+        "Sector": [sector],
+        "Score": [score],
+        "Decision": [decision],
+        "Suggested Limit": [format_inr(limit)],
+        "Suggested Rate": [f"{rate:.1f}%"],
+        "Character": [character_text],
+        "Capacity": [capacity_text],
+        "Capital": [capital_text],
+        "Collateral": [collateral_text],
+        "Conditions": [conditions_text],
+        "Rationale": [explanation_text],
+    }
+    cam_df = pd.DataFrame(cam_dict)
+    csv_bytes = cam_df.to_csv(index=False).encode("utf-8")
+
+    st.download_button(
+        label="Download CAM as CSV",
+        data=csv_bytes,
+        file_name=f"CAM_{company_name.replace(' ', '_')}.csv",
+        mime="text/csv",
+    )
+
+    # 3) PDF (sirf tab jab FPDF available ho)
+    if HAS_FPDF:
+        cam_text_for_pdf = cam_md.replace("**", "")
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_font("Arial", size=12)
+        for line in cam_text_for_pdf.split("\n"):
+            pdf.multi_cell(0, 8, txt=line)
+        pdf_bytes = pdf.output(dest="S").encode("latin1")
+
+        st.download_button(
+            label="Download CAM as PDF",
+            data=pdf_bytes,
+            file_name=f"CAM_{company_name.replace(' ', '_')}.pdf",
+            mime="application/pdf",
+        )
+    else:
+        st.info("PDF download not available on this deployment (FPDF not installed).")
+
+
+
 
 
