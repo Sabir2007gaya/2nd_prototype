@@ -3,15 +3,35 @@ import re
 import numpy as np
 import pandas as pd
 import streamlit as st
-#import fitz  # PyMuPDF
+
+# --------- Optional PyMuPDF (fitz) for local PDF parsing ---------
+try:
+    import fitz  # PyMuPDF
+    HAS_FITZ = True
+except Exception:
+    HAS_FITZ = False
+
+from fpdf import FPDF  # for CAM PDF download
+
 
 # ---------- Helper functions ----------
 
 def extract_text_from_pdf(uploaded_file):
     if uploaded_file is None:
         return ""
-    # Cloud demo: real PDF parsing disabled because PyMuPDF not available
-    return "PDF text extraction is disabled in the cloud demo version. Please run locally for full functionality."
+    data = uploaded_file.read()
+    if HAS_FITZ:
+        try:
+            doc = fitz.open(stream=data, filetype="pdf")
+            text = ""
+            for page in doc:
+                text += page.get_text()
+            return text
+        except Exception:
+            # if something still fails, fall back gracefully
+            return "Error while parsing PDF. Please check the file or try locally."
+    # Fallback for cloud / no fitz
+    return "PDF text extraction is not available on this deployment. Run locally with PyMuPDF for full functionality."
 
 
 def find_number_after_keyword(text, keywords):
@@ -23,11 +43,8 @@ def find_number_after_keyword(text, keywords):
     for line in lines:
         for kw in keywords:
             if kw.lower() in line:
-                # try to find something that looks like a big number
-                # remove commas, keep digits and dots
                 nums = re.findall(r"[0-9,]+\.?[0-9]*", line)
                 if nums:
-                    # choose the largest numeric value
                     vals = []
                     for n in nums:
                         try:
@@ -37,6 +54,7 @@ def find_number_after_keyword(text, keywords):
                     if vals:
                         return max(vals)
     return None
+
 
 def compute_gst_bank_flags(gst_df, bank_df):
     if gst_df is None or bank_df is None:
@@ -57,20 +75,15 @@ def compute_gst_bank_flags(gst_df, bank_df):
 
     return merged, circular_flag, has_circular_flag
 
+
 def detect_litigation_flag(text):
     keywords = ["litigation", "dispute", "penalty", "show cause", "nclt", "tribunal", "suit"]
     text_low = text.lower()
     hits = sum(text_low.count(k) for k in keywords)
     return hits > 3, hits
 
+
 def compute_score(features):
-    """
-    features: dict with
-      - d_to_e
-      - rev_growth
-      - circular_flag
-      - litigation_flag
-    """
     score = 50
 
     d_to_e = features.get("d_to_e")
@@ -100,6 +113,7 @@ def compute_score(features):
     score = max(0, min(100, score))
     return score
 
+
 def map_decision(score):
     if score < 40:
         return "Reject"
@@ -107,6 +121,7 @@ def map_decision(score):
         return "Approve with Caution"
     else:
         return "Approve"
+
 
 def suggest_limit_and_rate(avg_monthly_credits, score):
     if avg_monthly_credits is None:
@@ -122,6 +137,7 @@ def suggest_limit_and_rate(avg_monthly_credits, score):
         rate = 13.0
     return limit, rate
 
+
 def format_inr(x):
     if x is None:
         return "N/A"
@@ -129,6 +145,20 @@ def format_inr(x):
         return f"₹{x:,.0f}"
     except:
         return str(x)
+
+
+def cam_to_pdf_bytes(cam_text: str) -> bytes:
+    """Convert CAM text to a simple PDF using FPDF."""
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=12)
+
+    for line in cam_text.split("\n"):
+        pdf.multi_cell(0, 8, txt=line)
+    pdf_bytes = pdf.output(dest="S").encode("latin1")
+    return pdf_bytes
+
 
 # ---------- Streamlit UI ----------
 
@@ -313,91 +343,4 @@ with tab3:
     elif d_to_e <= 2:
         capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates moderate capacity to service additional debt."
     else:
-        capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates stressed capacity to service additional debt."
-
-    if rev_growth is None:
-        growth_desc = "Revenue growth trend is not fully available."
-    elif rev_growth > 10:
-        growth_desc = f"Revenue growth of {rev_growth:.1f}% reflects healthy business momentum."
-    elif rev_growth >= 0:
-        growth_desc = f"Revenue growth of {rev_growth:.1f}% reflects stable but modest growth."
-    else:
-        growth_desc = f"Revenue de‑growth of {rev_growth:.1f}% signals pressure on top‑line."
-
-    character_text = (
-        f"The borrower operates in the {sector} sector and has "
-        f"{'some' if combined_litigation_flag else 'no material'} indicators of litigation or regulatory disputes "
-        "based on document scan and user inputs."
-    )
-
-    capacity_text = (
-        capacity_desc + " " + growth_desc
-    )
-
-    capital_text = (
-        f"Approximate revenue of {format_inr(revenue)} and net profit of {format_inr(profit)} "
-        "suggest the internal accrual capacity for this prototype. "
-        "Detailed balance sheet analysis is not modelled in this version."
-    )
-
-    collateral_text = (
-        "Collateral details are not captured in this prototype; the recommendation is primarily driven by "
-        "cash‑flow behaviour, GST‑bank reconciliation and basic financial ratios."
-    )
-
-    conditions_text = (
-        f"The borrower operates in the {sector} sector. Macro and sectoral conditions are assumed "
-        "to be broadly stable for this demonstration."
-    )
-
-    explanation_text = (
-        f"The model assigned a score of {score}/100, driven by debt‑to‑equity, revenue growth, "
-        f"GST vs bank consistency and litigation indicators. The decision category is '{decision}', "
-        f"and a working capital limit of approximately {format_inr(limit)} at an indicative rate of {rate:.1f}% "
-        "is suggested for demonstration purposes."
-    )
-
-    cam_md = f"""
-### Credit Appraisal Memo (Prototype)
-
-**Company**: {company_name}  
-**Sector**: {sector}  
-**Score**: {score}/100  
-**Decision**: {decision}  
-
-**Suggested Limit**: {format_inr(limit)}  
-**Suggested Rate**: {rate:.1f}%  
-
-#### Character
-{character_text}
-
-#### Capacity
-{capacity_text}
-
-#### Capital
-{capital_text}
-
-#### Collateral
-{collateral_text}
-
-#### Conditions
-{conditions_text}
-
-#### Rationale
-{explanation_text}
-"""
-
-    st.markdown(cam_md)
-
-    # Download option
-    cam_bytes = cam_md.encode("utf-8")
-    st.download_button(
-        label="Download CAM as Markdown",
-        data=cam_bytes,
-        file_name=f"CAM_{company_name.replace(' ', '_')}.md",
-        mime="text/markdown"
-    )
-
-    st.caption("You can copy this CAM into Word/PDF for your hackathon submission.")
-
-
+        capacity_desc = f"Debt‑to‑equity of {d_to_e:.2f} indicates stressed
